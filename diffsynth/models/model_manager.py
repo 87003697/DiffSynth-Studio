@@ -3,51 +3,14 @@ from typing import List
 
 from .downloader import download_models, download_customized_models, Preset_model_id, Preset_model_website
 
-from .sd_text_encoder import SDTextEncoder
-from .sd_unet import SDUNet
-from .sd_vae_encoder import SDVAEEncoder
-from .sd_vae_decoder import SDVAEDecoder
+# 只保留WanX相关的模型导入
+from .wan_video_dit import WanModel
+from .wan_video_text_encoder import WanTextEncoder
+from .wan_video_image_encoder import WanImageEncoder
+from .wan_video_vae import WanVideoVAE, WanVideoVAE38
+from .wan_video_motion_controller import WanMotionControllerModel
+from .wan_video_vace import VaceWanModel
 from .lora import get_lora_loaders
-
-from .sdxl_text_encoder import SDXLTextEncoder, SDXLTextEncoder2
-from .sdxl_unet import SDXLUNet
-from .sdxl_vae_decoder import SDXLVAEDecoder
-from .sdxl_vae_encoder import SDXLVAEEncoder
-
-from .sd3_text_encoder import SD3TextEncoder1, SD3TextEncoder2, SD3TextEncoder3
-from .sd3_dit import SD3DiT
-from .sd3_vae_decoder import SD3VAEDecoder
-from .sd3_vae_encoder import SD3VAEEncoder
-
-from .sd_controlnet import SDControlNet
-from .sdxl_controlnet import SDXLControlNetUnion
-
-from .sd_motion import SDMotionModel
-from .sdxl_motion import SDXLMotionModel
-
-from .svd_image_encoder import SVDImageEncoder
-from .svd_unet import SVDUNet
-from .svd_vae_decoder import SVDVAEDecoder
-from .svd_vae_encoder import SVDVAEEncoder
-
-from .sd_ipadapter import SDIpAdapter, IpAdapterCLIPImageEmbedder
-from .sdxl_ipadapter import SDXLIpAdapter, IpAdapterXLCLIPImageEmbedder
-
-from .hunyuan_dit_text_encoder import HunyuanDiTCLIPTextEncoder, HunyuanDiTT5TextEncoder
-from .hunyuan_dit import HunyuanDiT
-from .hunyuan_video_vae_decoder import HunyuanVideoVAEDecoder
-from .hunyuan_video_vae_encoder import HunyuanVideoVAEEncoder
-
-from .flux_dit import FluxDiT
-from .flux_text_encoder import FluxTextEncoder2
-from .flux_vae import FluxVAEEncoder, FluxVAEDecoder
-from .flux_ipadapter import FluxIpAdapter
-
-from .cog_vae import CogVAEEncoder, CogVAEDecoder
-from .cog_dit import CogDiT
-
-from ..extensions.RIFE import IFNet
-from ..extensions.ESRGAN import RRDBNet
 
 from ..configs.model_config import model_loader_configs, huggingface_model_loader_configs, patch_model_loader_configs
 from .utils import load_state_dict, init_weights_on_device, hash_state_dict_keys, split_state_dict_with_prefix
@@ -132,7 +95,6 @@ def load_patch_model_from_single_file(state_dict, model_names, model_classes, ex
     return loaded_model_names, loaded_models
 
 
-
 class ModelDetectorTemplate:
     def __init__(self):
         pass
@@ -142,7 +104,6 @@ class ModelDetectorTemplate:
     
     def load(self, file_path="", state_dict={}, device="cuda", torch_dtype=torch.float16, **kwargs):
         return [], []
-    
 
 
 class ModelDetectorFromSingleFile:
@@ -152,12 +113,10 @@ class ModelDetectorFromSingleFile:
         for metadata in model_loader_configs:
             self.add_model_metadata(*metadata)
 
-
     def add_model_metadata(self, keys_hash, keys_hash_with_shape, model_names, model_classes, model_resource):
         self.keys_hash_with_shape_dict[keys_hash_with_shape] = (model_names, model_classes, model_resource)
         if keys_hash is not None:
             self.keys_hash_dict[keys_hash] = (model_names, model_classes, model_resource)
-
 
     def match(self, file_path="", state_dict={}):
         if isinstance(file_path, str) and os.path.isdir(file_path):
@@ -171,7 +130,6 @@ class ModelDetectorFromSingleFile:
         if keys_hash in self.keys_hash_dict:
             return True
         return False
-
 
     def load(self, file_path="", state_dict={}, device="cuda", torch_dtype=torch.float16, **kwargs):
         if len(state_dict) == 0:
@@ -185,21 +143,18 @@ class ModelDetectorFromSingleFile:
             return loaded_model_names, loaded_models
 
         # Load models without strict matching
-        # (the shape of parameters may be inconsistent, and the state_dict_converter will modify the model architecture)
         keys_hash = hash_state_dict_keys(state_dict, with_shape=False)
         if keys_hash in self.keys_hash_dict:
             model_names, model_classes, model_resource = self.keys_hash_dict[keys_hash]
             loaded_model_names, loaded_models = load_model_from_single_file(state_dict, model_names, model_classes, model_resource, torch_dtype, device)
             return loaded_model_names, loaded_models
 
-        return loaded_model_names, loaded_models
-
+        return [], []
 
 
 class ModelDetectorFromSplitedSingleFile(ModelDetectorFromSingleFile):
     def __init__(self, model_loader_configs=[]):
         super().__init__(model_loader_configs)
-
 
     def match(self, file_path="", state_dict={}):
         if isinstance(file_path, str) and os.path.isdir(file_path):
@@ -211,7 +166,6 @@ class ModelDetectorFromSplitedSingleFile(ModelDetectorFromSingleFile):
             if super().match(file_path, sub_state_dict):
                 return True
         return False
-
 
     def load(self, file_path="", state_dict={}, device="cuda", torch_dtype=torch.float16, **kwargs):
         # Split the state_dict and load from each component
@@ -230,7 +184,6 @@ class ModelDetectorFromSplitedSingleFile(ModelDetectorFromSingleFile):
                     loaded_model_names += loaded_model_names_
                     loaded_models += loaded_models_
         return loaded_model_names, loaded_models
-    
 
 
 class ModelDetectorFromHuggingfaceFolder:
@@ -239,10 +192,8 @@ class ModelDetectorFromHuggingfaceFolder:
         for metadata in model_loader_configs:
             self.add_model_metadata(*metadata)
 
-
     def add_model_metadata(self, architecture, huggingface_lib, model_name, redirected_architecture):
         self.architecture_dict[architecture] = (huggingface_lib, model_name, redirected_architecture)
-
 
     def match(self, file_path="", state_dict={}):
         if not isinstance(file_path, str) or os.path.isfile(file_path):
@@ -255,7 +206,6 @@ class ModelDetectorFromHuggingfaceFolder:
         if "architectures" not in config and "_class_name" not in config:
             return False
         return True
-
 
     def load(self, file_path="", state_dict={}, device="cuda", torch_dtype=torch.float16, **kwargs):
         with open(os.path.join(file_path, "config.json"), "r") as f:
@@ -271,7 +221,6 @@ class ModelDetectorFromHuggingfaceFolder:
             loaded_model_names += loaded_model_names_
             loaded_models += loaded_models_
         return loaded_model_names, loaded_models
-    
 
 
 class ModelDetectorFromPatchedSingleFile:
@@ -280,10 +229,8 @@ class ModelDetectorFromPatchedSingleFile:
         for metadata in model_loader_configs:
             self.add_model_metadata(*metadata)
 
-
     def add_model_metadata(self, keys_hash_with_shape, model_name, model_class, extra_kwargs):
         self.keys_hash_with_shape_dict[keys_hash_with_shape] = (model_name, model_class, extra_kwargs)
-
 
     def match(self, file_path="", state_dict={}):
         if not isinstance(file_path, str) or os.path.isdir(file_path):
@@ -294,7 +241,6 @@ class ModelDetectorFromPatchedSingleFile:
         if keys_hash_with_shape in self.keys_hash_with_shape_dict:
             return True
         return False
-
 
     def load(self, file_path="", state_dict={}, device="cuda", torch_dtype=torch.float16, model_manager=None, **kwargs):
         if len(state_dict) == 0:
@@ -310,7 +256,6 @@ class ModelDetectorFromPatchedSingleFile:
             loaded_model_names += loaded_model_names_
             loaded_models += loaded_models_
         return loaded_model_names, loaded_models
-
 
 
 class ModelManager:
@@ -336,7 +281,6 @@ class ModelManager:
         ]
         self.load_models(downloaded_files + file_path_list)
 
-
     def load_model_from_single_file(self, file_path="", state_dict={}, model_names=[], model_classes=[], model_resource=None):
         print(f"Loading models from file: {file_path}")
         if len(state_dict) == 0:
@@ -348,7 +292,6 @@ class ModelManager:
             self.model_name.append(model_name)
         print(f"    The following models are loaded: {model_names}.")
 
-
     def load_model_from_huggingface_folder(self, file_path="", model_names=[], model_classes=[]):
         print(f"Loading models from folder: {file_path}")
         model_names, models = load_model_from_huggingface_folder(file_path, model_names, model_classes, self.torch_dtype, self.device)
@@ -357,7 +300,6 @@ class ModelManager:
             self.model_path.append(file_path)
             self.model_name.append(model_name)
         print(f"    The following models are loaded: {model_names}.")
-
 
     def load_patch_model_from_single_file(self, file_path="", state_dict={}, model_names=[], model_classes=[], extra_kwargs={}):
         print(f"Loading patch models from file: {file_path}")
@@ -368,7 +310,6 @@ class ModelManager:
             self.model_path.append(file_path)
             self.model_name.append(model_name)
         print(f"    The following patched models are loaded: {model_names}.")
-
 
     def load_lora(self, file_path="", state_dict={}, lora_alpha=1.0):
         if isinstance(file_path, list):
@@ -390,7 +331,6 @@ class ModelManager:
                         break
             if not is_loaded:
                 print(f"    Cannot load LoRA: {file_path}")
-
 
     def load_model(self, file_path, model_names=None, device=None, torch_dtype=None):
         print(f"Loading models from: {file_path}")
@@ -420,11 +360,9 @@ class ModelManager:
         else:
             print(f"    We cannot detect the model type. No models are loaded.")
         
-
     def load_models(self, file_path_list, model_names=None, device=None, torch_dtype=None):
         for file_path in file_path_list:
             self.load_model(file_path, model_names, device=device, torch_dtype=torch_dtype)
-
     
     def fetch_model(self, model_name, file_path=None, require_model_path=False, index=None):
         fetched_models = []
@@ -459,8 +397,7 @@ class ModelManager:
             return model, path
         else:
             return model
-        
-
+         
     def to(self, device):
         for model in self.model:
             model.to(device)
