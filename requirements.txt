@@ -14,3 +14,5 @@ ftfy
 pynvml
 pandas
 accelerate
+peft
+datasets
